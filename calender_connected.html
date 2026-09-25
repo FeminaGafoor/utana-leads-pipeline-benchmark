@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Northbeam Supply Co. — Shared Calendar (Live)</title>
+<style>
+  :root { color-scheme: light; --bg:#f4f5f7; --panel:#fff; --border:#e2e4e8; --text:#1f2328; --muted:#6b7280; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+  header { background:var(--panel); border-bottom:1px solid var(--border); padding:14px 20px; display:flex; align-items:center; gap:12px; }
+  header .logo { width:32px; height:32px; border-radius:8px; background:linear-gradient(135deg,#dc2626,#991b1b); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:14px; }
+  header h1 { font-size:16px; margin:0; }
+  header .sub { font-size:12px; color:var(--muted); }
+  .status { margin-left:auto; font-size:12px; padding:4px 10px; border-radius:20px; font-weight:600; }
+  .status.connected { background:#dcfce7; color:#16a34a; }
+  .status.disconnected { background:#fee2e2; color:#dc2626; }
+  .banner { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; padding:10px 14px; border-radius:8px; font-size:12px; margin:20px 24px 0; }
+  .wrap { padding:20px 24px; max-width:1000px; margin:0 auto; }
+  .grid { background:var(--panel); border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-top:16px; }
+  .row { display:grid; grid-template-columns:90px 1fr; border-bottom:1px solid var(--border); }
+  .row:last-child { border-bottom:none; }
+  .time-col { padding:12px 14px; font-size:12px; color:var(--muted); border-right:1px solid var(--border); }
+  .slot-col { padding:10px 14px; }
+  .slot { padding:8px 12px; border-radius:6px; margin-bottom:6px; font-size:13px; }
+  .slot.free { color:var(--muted); font-style:italic; background:#f8fafc; }
+  .slot.booked { background:#fee2e2; }
+  .slot.conflict { background:#fecaca; border:2px dashed #dc2626; }
+  .who { display:inline-block; font-size:10px; font-weight:700; padding:1px 6px; border-radius:4px; margin-right:6px; background:#dbeafe; color:#1e40af; }
+  .req-panel { margin-top:20px; background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:18px 20px; }
+  .req-panel h3 { font-size:14px; margin:0 0 8px; }
+  .req-panel p { font-size:13px; color:var(--muted); margin:0 0 14px; }
+  button { background:#dc2626; color:#fff; border:none; border-radius:8px; padding:10px 16px; font-size:13px; font-weight:600; cursor:pointer; }
+  .log { margin-top:14px; font-size:12px; color:var(--muted); font-family:ui-monospace,monospace; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">📅</div>
+  <div><h1>Loading Dock Calendar</h1><div class="sub">Live — connected to localhost:5050</div></div>
+  <div class="status disconnected" id="status">Connecting...</div>
+</header>
+<div class="banner">💡 Real shared resource — click below to simulate a second agent trying to book an already-taken slot. The server itself detects the conflict, not just the page.</div>
+<div class="wrap">
+  <div class="grid" id="grid"></div>
+  <div class="req-panel">
+    <h3>Simulate a booking conflict</h3>
+    <p>Attempts to book 2:00 PM, which is already taken.</p>
+    <button onclick="attemptBooking('2:00 PM')">Simulate: Agent B books 2:00 PM</button>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+<script>
+const API = "http://localhost:5050/api/bookings";
+const allSlots = ["9:00 AM", "11:00 AM", "2:00 PM", "4:00 PM"];
+let log = [];
+
+async function load() {
+  try {
+    const res = await fetch(API);
+    const bookings = await res.json();
+    document.getElementById("status").textContent = "● Connected";
+    document.getElementById("status").className = "status connected";
+    render(bookings);
+  } catch (e) {
+    document.getElementById("status").textContent = "● Backend not running";
+    document.getElementById("status").className = "status disconnected";
+  }
+}
+
+function render(bookings) {
+  document.getElementById("grid").innerHTML = allSlots.map(time => {
+    const matches = bookings.filter(b => b.time_slot === time);
+    return `<div class="row">
+      <div class="time-col">${time}</div>
+      <div class="slot-col">
+        ${matches.length === 0 ? `<div class="slot free">Available</div>` :
+          matches.map((b, i) => `<div class="slot ${i > 0 ? 'conflict' : 'booked'}">${i > 0 ? '⚠️ ' : ''}<span class="who">${b.who.toUpperCase()}</span><b>${b.label}</b></div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById("log").innerHTML = log.map(l => `<div>${l}</div>`).join('');
+}
+
+async function attemptBooking(time) {
+  const res = await fetch(API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ time_slot: time, who: "agent", label: "Agent B — attempted delivery booking" })
+  });
+  const result = await res.json();
+  log.push(result.conflict
+    ? `⚠️ Server detected a real conflict at ${time} — Agent A already holds it.`
+    : `✓ Booked ${time} successfully, no conflict.`);
+  load();
+}
+
+load();
+setInterval(load, 4000);
+</script>
+</body>
+</html>

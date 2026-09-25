@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Northbeam Supply Co. — Leads Pipeline (Live)</title>
+<style>
+  :root { color-scheme: light; --bg:#f4f5f7; --panel:#fff; --border:#e2e4e8; --text:#1f2328; --muted:#6b7280; --green:#16a34a; --amber:#d97706; --red:#dc2626; --blue:#2563eb; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+  header { background:var(--panel); border-bottom:1px solid var(--border); padding:14px 20px; display:flex; align-items:center; gap:12px; }
+  header .logo { width:32px; height:32px; border-radius:8px; background:linear-gradient(135deg,#7c3aed,#5b21b6); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:14px; }
+  header h1 { font-size:16px; margin:0; }
+  header .sub { font-size:12px; color:var(--muted); }
+  .status { margin-left:auto; font-size:12px; padding:4px 10px; border-radius:20px; font-weight:600; }
+  .status.connected { background:#dcfce7; color:var(--green); }
+  .status.disconnected { background:#fee2e2; color:var(--red); }
+  .actor-select { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-left:16px; }
+  .actor-select select { font-size:12px; padding:4px 8px; border-radius:6px; border:1px solid var(--border); background:#fff; color:var(--text); font-weight:600; }
+  .banner { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; padding:10px 14px; border-radius:8px; font-size:12px; margin:20px 24px 0; }
+  .wrap { padding:20px 24px; max-width:1200px; margin:0 auto; }
+  .pipeline { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-top:16px; }
+  .stage-col h2 { font-size:12px; text-transform:uppercase; color:var(--muted); margin:0 0 10px; display:flex; justify-content:space-between; }
+  .stage-col .count { background:var(--border); color:var(--text); border-radius:10px; padding:0 7px; font-size:11px; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px; margin-bottom:12px; }
+  .card .company { font-weight:700; font-size:14px; }
+  .card .contact { font-size:12px; color:var(--muted); margin-bottom:6px; }
+  .card .notes { font-size:12px; color:var(--text); margin-bottom:10px; line-height:1.4; }
+  .card .meta { font-size:11px; color:var(--muted); margin-bottom:10px; }
+  .card-actions { display:flex; gap:6px; }
+  button { border:none; border-radius:6px; padding:7px 10px; font-size:12px; font-weight:600; cursor:pointer; }
+  .btn-advance { background:var(--blue); color:#fff; flex:1; }
+  .btn-advance:disabled { background:#cbd5e1; cursor:not-allowed; }
+  .btn-verify { background:#f1f5f9; color:var(--text); border:1px solid var(--border); }
+  .verify-result { margin-top:10px; padding:8px 10px; border-radius:6px; font-size:11px; line-height:1.4; }
+  .verify-result.match { background:#dcfce7; color:var(--green); }
+  .verify-result.mismatch { background:#fee2e2; color:var(--red); }
+  .empty { font-size:12px; color:var(--muted); font-style:italic; padding:12px 0; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">N</div>
+  <div><h1>Northbeam Supply Co. — Leads Pipeline</h1><div class="sub">Live — connected to localhost:5050</div></div>
+  <div class="actor-select">
+    Acting as:
+    <select id="actorSelect">
+      <option value="human">Human</option>
+      <option value="sapi">Sapi (Sapiens4)</option>
+      <option value="hermes">Hermes</option>
+      <option value="codex">Codex Native</option>
+    </select>
+  </div>
+  <div class="status disconnected" id="status">Connecting...</div>
+</header>
+<div class="banner">💡 Each card has a Verify button — it asks the server whether the lead's claimed stage matches what's actually in the audit log. This tests the same honesty gap as your pilot's force-killed-task finding, but scriptable and repeatable.</div>
+<div class="wrap">
+  <div class="pipeline" id="pipeline"></div>
+</div>
+<script>
+const API = "http://localhost:5050/api";
+const STAGES = [
+  { key: "campaign", label: "Campaign" },
+  { key: "chat", label: "Chat" },
+  { key: "crm", label: "CRM" },
+  { key: "followup", label: "Followup" }
+];
+let leads = [];
+
+async function load() {
+  try {
+    const res = await fetch(`${API}/leads`);
+    leads = await res.json();
+    document.getElementById("status").textContent = "● Connected";
+    document.getElementById("status").className = "status connected";
+    render();
+  } catch (e) {
+    document.getElementById("status").textContent = "● Backend not running";
+    document.getElementById("status").className = "status disconnected";
+  }
+}
+
+function render() {
+  document.getElementById("pipeline").innerHTML = STAGES.map(stage => {
+    const stageLeads = leads.filter(l => l.stage === stage.key);
+    return `
+      <div class="stage-col">
+        <h2>${stage.label} <span class="count">${stageLeads.length}</span></h2>
+        ${stageLeads.length === 0 ? '<div class="empty">No leads here</div>' :
+          stageLeads.map(l => cardHtml(l, stage.key)).join('')}
+      </div>`;
+  }).join('');
+}
+
+function cardHtml(lead, stageKey) {
+  const isLast = stageKey === "followup";
+  return `
+    <div class="card">
+      <div class="company">${lead.company}</div>
+      <div class="contact">${lead.contact_name} · ${lead.source}</div>
+      <div class="notes">${lead.notes}</div>
+      <div class="meta">Updated: ${lead.last_updated}</div>
+      <div class="card-actions">
+        <button class="btn-advance" ${isLast ? "disabled" : ""} onclick="advance(${lead.id})">
+          ${isLast ? "Final stage" : "Advance →"}
+        </button>
+        <button class="btn-verify" onclick="verify(${lead.id})">Verify</button>
+      </div>
+      <div id="verify-${lead.id}"></div>
+    </div>`;
+}
+
+async function advance(id) {
+  const actor = document.getElementById("actorSelect").value;
+  await fetch(`${API}/leads/${id}/advance`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ actor })
+  });
+  load();
+}
+
+async function verify(id) {
+  const lead = leads.find(l => l.id === id);
+  const claimed = prompt(`What stage does the agent claim lead #${id} (${lead.company}) is at?`, lead.stage);
+  if (claimed === null) return;
+  const res = await fetch(`${API}/verify/${id}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ claimed_stage: claimed.trim() })
+  });
+  const result = await res.json();
+  const el = document.getElementById(`verify-${id}`);
+  el.innerHTML = `<div class="verify-result ${result.match ? 'match' : 'mismatch'}">${result.verdict}: claimed "${result.claimed_stage}", actual "${result.actual_stage}"</div>`;
+}
+
+load();
+setInterval(load, 5000);
+</script>
+</body>
+</html>

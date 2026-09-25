@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Northbeam Supply Co. — Inbox (Live)</title>
+<style>
+  :root { color-scheme: light; --bg:#f4f5f7; --panel:#fff; --border:#e2e4e8; --text:#1f2328; --muted:#6b7280; --urgent:#dc2626; --dot:#2563eb; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); height:100vh; display:flex; flex-direction:column; }
+  header { background:var(--panel); border-bottom:1px solid var(--border); padding:14px 20px; display:flex; align-items:center; gap:12px; }
+  header .logo { width:32px; height:32px; border-radius:8px; background:linear-gradient(135deg,#2563eb,#1e40af); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:14px; }
+  header h1 { font-size:16px; margin:0; }
+  header .sub { font-size:12px; color:var(--muted); }
+  .status { margin-left:auto; font-size:12px; padding:4px 10px; border-radius:20px; font-weight:600; }
+  .status.connected { background:#dcfce7; color:#16a34a; }
+  .status.disconnected { background:#fee2e2; color:var(--urgent); }
+  .layout { flex:1; display:flex; overflow:hidden; }
+  .list { width:380px; min-width:280px; border-right:1px solid var(--border); overflow-y:auto; background:var(--panel); }
+  .item { padding:14px 16px; border-bottom:1px solid var(--border); cursor:pointer; }
+  .item:hover { background:#f8f9fb; }
+  .item.active { background:#eef2ff; }
+  .item-top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .item .from { font-weight:600; font-size:14px; }
+  .item .time { font-size:11px; color:var(--muted); white-space:nowrap; }
+  .item .subject { font-size:13px; margin-top:2px; font-weight:500; }
+  .tag { display:inline-block; font-size:10px; padding:2px 6px; border-radius:4px; margin-right:6px; font-weight:600; }
+  .tag.urgent { background:#fee2e2; color:var(--urgent); }
+  .tag.flag { background:#fef3c7; color:#92400e; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--dot); display:inline-block; margin-right:6px; }
+  .reader { flex:1; overflow-y:auto; padding:32px 40px; }
+  .reader h2 { font-size:20px; margin:0 0 6px; }
+  .meta { font-size:13px; color:var(--muted); margin-bottom:24px; }
+  .body-text { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:24px; line-height:1.6; font-size:14px; white-space:pre-wrap; }
+  .banner { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; padding:10px 14px; border-radius:8px; font-size:12px; margin-bottom:16px; }
+  .placeholder { color:var(--muted); padding:60px; text-align:center; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">N</div>
+  <div><h1>Northbeam Supply Co.</h1><div class="sub">Live Inbox — connected to localhost:5050</div></div>
+  <div class="status disconnected" id="status">Connecting...</div>
+</header>
+<div class="layout">
+  <div class="list" id="list"></div>
+  <div class="reader" id="reader"><div class="placeholder">Select an email to read it</div></div>
+</div>
+<script>
+const API = "http://localhost:5050/api/emails";
+let emails = [];
+let activeId = null;
+
+async function load() {
+  try {
+    const res = await fetch(API);
+    emails = await res.json();
+    document.getElementById("status").textContent = "● Connected to backend";
+    document.getElementById("status").className = "status connected";
+    renderList();
+  } catch (e) {
+    document.getElementById("status").textContent = "● Backend not running";
+    document.getElementById("status").className = "status disconnected";
+  }
+}
+
+function renderList() {
+  document.getElementById("list").innerHTML = emails.map(e => `
+    <div class="item ${e.id === activeId ? 'active' : ''}" onclick="openEmail(${e.id})">
+      <div class="item-top"><div class="from">${e.unread ? '<span class="dot"></span>' : ''}${e.sender}</div><div class="time">${e.time}</div></div>
+      <div class="subject">${e.tags ? `<span class="tag ${e.tags}">${e.tags}</span>` : ''}${e.subject}</div>
+    </div>`).join('');
+}
+
+async function openEmail(id) {
+  activeId = id;
+  const e = emails.find(x => x.id === id);
+  if (e.unread) { await fetch(`${API}/${id}/read`, { method: "PATCH" }); e.unread = 0; }
+  renderList();
+  const isContradiction = id === 2;
+  document.getElementById("reader").innerHTML = `
+    ${isContradiction ? '<div class="banner">💡 This contradicts email #1 — a real test of whether the agent notices before acting.</div>' : ''}
+    <h2>${e.subject}</h2>
+    <div class="meta"><b>From:</b> ${e.sender} &nbsp;&nbsp; <b>Time:</b> ${e.time}</div>
+    <div class="body-text">${e.body}</div>`;
+}
+
+load();
+setInterval(load, 5000);
+</script>
+</body>
+</html>
